@@ -1,10 +1,11 @@
 from typing import Union
 from fastapi import FastAPI
+from fastapi import HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import numpy as np
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
@@ -20,12 +21,6 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-df = pd.read_csv("data-set.csv")
-
-features = ['brand']
-for feature in features:
-    df[feature] = df[feature].fillna('')
-
 
 def combined_features(row):
     name = row["name"]
@@ -36,16 +31,26 @@ def combined_features(row):
     return f"{ categoryName } { categoryName } { subCategory } { subCategory } { brand } { name }".lower()
 
 
-df["combined_features"] = df.apply(combined_features, axis=1)
-
-cv = CountVectorizer()
-count_matrix = cv.fit_transform(df["combined_features"])
-cosine_sim = cosine_similarity(count_matrix)
-
-
 @app.get("/recommendations/{product_id}")
 def get_recommendations(product_id: int):
-    product_index = df[df["id"] == product_id].index[0]
+    df = pd.read_csv("data-set.csv")
+    product_indices = df[df["id"] == product_id].index
+
+    if len(product_indices) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="product not found")
+
+    product_index = product_indices[0]
+
+    features = ['brand']
+    for feature in features:
+        df[feature] = df[feature].fillna('')
+
+    df["combined_features"] = df.apply(combined_features, axis=1)
+
+    cv = CountVectorizer()
+    count_matrix = cv.fit_transform(df["combined_features"])
+    cosine_sim = cosine_similarity(count_matrix)
 
     similar_products = list(enumerate(cosine_sim[product_index]))
     sorted_similar_products = sorted(
@@ -57,48 +62,34 @@ def get_recommendations(product_id: int):
     return result[0:10]
 
 
-# @app.post("/products")
-# def add_product(product_data: dict):
-#     df.loc[len(df)] = product_data
-
-#     # Calculate the feature representation for the new product
-#     combined_features = combined_features(product_data)
-#     new_product_feature_vector = cv.transform([combined_features])
-
-#     # Compute similarity between the new product and existing products
-#     similarity_scores = cosine_similarity(
-#         count_matrix, new_product_feature_vector)
-
-#     # Update the similarity matrix
-#     global cosine_sim
-#     cosine_sim = np.append(cosine_sim, similarity_scores, axis=1)
-
-#     return {"message": "Product added successfully."}
-
+@app.post("/products")
 def add_product(product_data: dict):
-    # Assuming product_data contains the features of the new product
-    # Add the new product to the dataset
+    df = pd.read_csv("data-set.csv")
     product_id = product_data["id"]
+    product_exists = False
 
-    # Check if the product with the same ID already exists
-    if df["id"].isin([product_id]).any():
-        return "product with this id already exists"
+    if product_id in df["id"].values:
+        product_exists = True
+        product_index = df[df["id"] == product_id].index[0]
+        df = df.drop(product_index)
 
     df.loc[len(df)] = product_data
-
-    # Calculate the feature representation for the new product
-    product_combined_features = combined_features(product_data)
-    new_product_feature_vector = cv.transform([product_combined_features])
-
-    # Compute similarity between the new product and existing products
-    similarity_scores = cosine_similarity(
-        count_matrix, new_product_feature_vector)
-
-    # Update the similarity matrix
-    global cosine_sim
-    cosine_sim = np.append(cosine_sim, similarity_scores, axis=1)
-
-    # Save the updated DataFrame to the data-set file
     df.to_csv("data-set.csv", index=False)
 
-    return "product has been added"
+    return {"message": f"the product has been { 'updated' if product_exists else 'added' }"}
+
+
+@app.delete("/products/{product_id}")
+def remove_product(product_id: int):
+    df = pd.read_csv("data-set.csv")
+
+    if product_id not in df["id"].values:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="product not found")
+
+    product_index = df[df["id"] == product_id].index[0]
+
+    df = df.drop(product_index)
+    df.to_csv("data-set.csv", index=False)
+
+    return {"message": "the product has been removed"}
