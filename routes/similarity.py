@@ -4,25 +4,19 @@ import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+from utils.combine_features import combine_features
+
 router = APIRouter()
 
 
-def combine_features(row):
-    name = row["name"]
-    categoryName = row["categoryName"].replace(" ", "_")
-    subCategory = row["subCategory"]
-    brand = row["brand"]
-
-    return f"{ categoryName } { categoryName } { subCategory } { subCategory } { brand } { name }".lower()
-
-
-df = pd.read_csv("similarity-data-set.csv")
 count_matrix = None
 cosine_sim = None
 
 
 def calculate_cosine_similarity():
-    global count_matrix, cosine_sim, df
+    global count_matrix, cosine_sim
+
+    df = pd.read_csv("similarity-data-set.csv")
 
     features = ['brand']
     for feature in features:
@@ -40,7 +34,9 @@ calculate_cosine_similarity()
 
 @router.get("/{product_id}")
 def get_similar_products(product_id: int):
-    global df, cosine_sim
+    global cosine_sim
+
+    df = pd.read_csv("similarity-data-set.csv")
 
     product_indices = df[df["id"] == product_id].index
 
@@ -58,7 +54,7 @@ def get_similar_products(product_id: int):
         similar_products, key=lambda x: x[1], reverse=True)
 
     result = [{"productId": int(df.iloc[item[0]]["id"]), "similarity": item[1]}
-              for item in sorted_similar_products if item[1] > 0 and int(df.iloc[item[0]]["id"]) != product_id]
+              for item in sorted_similar_products if item[1] >= 0.2 and int(df.iloc[item[0]]["id"]) != product_id]
 
     # result = [int(df.iloc[item[0]]["id"]) for item in sorted_similar_products if item[1]
     #           > 0 and int(df.iloc[item[0]]["id"]) != product_id]
@@ -68,9 +64,8 @@ def get_similar_products(product_id: int):
 
 @router.post("/products")
 def add_product(product_data: dict):
-    global df
+    df = pd.read_csv("similarity-data-set.csv")
 
-    # df = pd.read_csv("similarity-data-set.csv")
     product_id = product_data["id"]
     product_exists = False
 
@@ -89,8 +84,7 @@ def add_product(product_data: dict):
 
 @router.delete("/products/{product_id}")
 def remove_product(product_id: int):
-    global df
-    # df = pd.read_csv("similarity-data-set.csv")
+    df = pd.read_csv("similarity-data-set.csv")
 
     if product_id not in df["id"].values:
         raise HTTPException(
