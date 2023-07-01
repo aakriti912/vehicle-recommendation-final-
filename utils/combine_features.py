@@ -1,10 +1,9 @@
 def combine_features(row):
-    name = row["name"]
-    categoryName = row["categoryName"].replace(" ", "_")
-    subCategory = row["subCategory"].replace(" ", "_")
-    brand = row["brand"]
+    vehicle_name = row["vehicle_name"]
+    fuel_electric= row["fuel_electric"]
+    vehicle_type= row["vehicle_type"]
 
-    categoryWeight = categoryName + " " + categoryName
-    subCategoryWeight = subCategory + " " + subCategory
+    vehicleNameWeight = vehicle_name + " " + vehicle_name
+  
 
-    return f"{categoryWeight} { subCategoryWeight } {brand} {name}".lower()
+    return f"{vehicleNameWeight} { fuel_electric } {vehicle_type}".lower()

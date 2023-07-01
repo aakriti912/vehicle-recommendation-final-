@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routes import similarity
-from routes import recommendations
+
 
 app = FastAPI()
 
@@ -20,4 +20,4 @@ app.add_middleware(
 )
 
 app.include_router(similarity.router, prefix="/similar")
-app.include_router(recommendations.router, prefix="/recommendations")
+
